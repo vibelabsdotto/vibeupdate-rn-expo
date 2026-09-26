@@ -9,9 +9,6 @@
   "module": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",
   "react-native": "./dist/esm/index.js",
-  "bin": {
-    "vibeupdate": "./bin/vibeupdate.mjs"
-  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
@@ -23,7 +20,6 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "bin",
     "dist",
     "README.md",
     "LICENSE",

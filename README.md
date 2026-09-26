@@ -25,19 +25,14 @@ npx expo install expo-application expo-localization @react-native-async-storage/
 
 ## Release CLI and local simulator demo
 
-This package also installs a `vibeupdate` CLI (from this checkout: `node ./bin/vibeupdate.mjs`). It talks to the VibeUpdate backend; it does **not** upload an IPA/AAB or deploy an Expo OTA bundle. Create an **agent token** in the dashboard and set it only in the environment:
+The agent CLI is a **separate package**, not a command installed by this Expo SDK. To manage apps and releases, use [@vibelabsdotto/vibeupdate-cli](https://www.npmjs.com/package/@vibelabsdotto/vibeupdate-cli) or the dashboard:
 
 ```sh
-export VIBEUPDATE_API_URL=http://localhost:3200 # omit for the hosted HTTPS API
-export VIBEUPDATE_TOKEN='<agent token from the dashboard>'
-node ./bin/vibeupdate.mjs apps
-node ./bin/vibeupdate.mjs releases <internal-app-id>
-node ./bin/vibeupdate.mjs push <internal-app-id> example/releases/build-2.json ios optional
-node ./bin/vibeupdate.mjs add-target <internal-app-id> <release-id> android 2 optional
-node ./bin/vibeupdate.mjs check <public-app-id> ios com.example.app 1 1.0.0 en-US
+npm install -g @vibelabsdotto/vibeupdate-cli
+vibeupdate --help
 ```
 
-`apps` lists the **internal** `appdb_…` ID for publishing; `check` uses the **public** `app_…` ID and needs no token. The release JSON includes `visibleVersion`, at least one `translations` entry with Markdown, and a `targets` entry with a platform and integer build number (see `example/releases/`). The app must already have that platform's native identifier and HTTPS Store URL configured. `push` creates a draft, publishes the selected platform/mode, and reads the published target back; if publication fails, inspect the remaining draft in the dashboard before retrying. A visible version is unique **per app**, not per platform: use `add-target` on an existing release to add the other platform at its own build number. This preserves the first platform's published target and refuses to replace an existing one. Never commit a real agent token.
+Create an agent token under Dashboard → Agent Tokens and pass it to `vibeupdate context set-token VibeUpdate.app --token-stdin` through a private local file or secret-manager pipe. Do not put tokens in chat, shell arguments, environment variables, tracked files, or logs. The [agent setup skill](https://raw.githubusercontent.com/vibelabsdotto/vibeupdate-rn-expo/main/skills/vibeupdate/SKILL.md) documents safe CLI setup, internal versus public app IDs, SDK configuration, and release commands. Neither the CLI nor this SDK uploads an IPA/AAB or deploys an Expo OTA update.
 
 For a local iOS Simulator smoke with the sibling backend running on port 3200:
 

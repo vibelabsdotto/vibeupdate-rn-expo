@@ -10,7 +10,7 @@ export type MarkdownBlock =
   | { type: 'list'; ordered: boolean; items: InlineNode[][] };
 
 function sanitize(markdown: string): string {
-  return markdown.slice(0, 20_000)
+  return markdown
     .replace(/<!--[^]*?-->/g, '')
     .replace(/<(script|style)\b[^>]*>[^]*?<\/\1\s*>/gi, '')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -57,7 +57,6 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
   let index = 0;
   while (index < lines.length) {
-    if (blocks.length >= 200) break;
     const line = lines[index] ?? '';
     if (line.trim() === '') { index += 1; continue; }
     const heading = /^(#{1,6})\s+(.+)$/.exec(line);
@@ -71,7 +70,6 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
       const ordered = list[1] !== undefined;
       const items: InlineNode[][] = [];
       while (index < lines.length) {
-        if (items.length >= 100) break;
         const current = /^\s*(?:(\d+)[.)]|[-+*])\s+(.+)$/.exec(lines[index] ?? '');
         if (current === null || (current[1] !== undefined) !== ordered || current[2] === undefined) break;
         items.push(parseInline(current[2].trim()));

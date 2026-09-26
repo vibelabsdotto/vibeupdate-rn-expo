@@ -1,0 +1,15 @@
+{
+  "visibleVersion": "1.1.0",
+  "translations": [
+    {
+      "locale": "en",
+      "sharedMarkdown": "# 1.1\n\nOptional update with **Markdown** and [link](https://vibeupdate.app)."
+    }
+  ],
+  "targets": [
+    {
+      "platform": "ios",
+      "buildNumber": 2
+    }
+  ]
+}

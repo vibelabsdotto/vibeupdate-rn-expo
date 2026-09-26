@@ -5,7 +5,7 @@ import { checkApi } from './api.js';
 import { choosePresentation } from './decision.js';
 import { DEFAULT_FOREGROUND_INTERVAL_MS, shouldRecheckInForeground } from './foreground.js';
 import { getRuntimeMetadata } from './metadata.js';
-import { createStorageKeys, getSeenState, markPresentationSeen } from './storage.js';
+import { createStorageKeys, getSeenState, markPresentationSeen, type StorageKeys } from './storage.js';
 import type {
   CheckVibeUpdateOptions,
   CheckVibeUpdateResult,
@@ -20,6 +20,7 @@ import { UpdateDialog } from './ui.js';
 export const DEFAULT_API_URL = 'https://api.vibeupdate.app';
 export const DEFAULT_TIMEOUT_MS = 3000;
 const defaultStorage = AsyncStorage as unknown as StorageAdapter;
+type Display = { value: Presentation; keys: StorageKeys };
 
 function developmentWarning(error: VibeUpdateError): void {
   if (error.code === 'invalid-config' && typeof __DEV__ !== 'undefined' && __DEV__) {
@@ -78,7 +79,8 @@ export function VibeUpdate({
   onOpenStore,
   enabled = true,
 }: VibeUpdateProps): React.JSX.Element | null {
-  const [presentation, setPresentation] = useState<Presentation | null>(null);
+  const [display, setDisplay] = useState<Display | null>(null);
+  const displayRef = useRef<Display | null>(null);
   const presentedThisMount = useRef(false);
   const requestedInitialCheck = useRef(false);
   const mounted = useRef(true);
@@ -93,17 +95,22 @@ export function VibeUpdate({
   useEffect(() => {
     requestedInitialCheck.current = false;
     presentedThisMount.current = false;
-    setPresentation(null);
+    displayRef.current = null;
+    setDisplay(null);
     if (!enabled) return undefined;
     const controller = new AbortController();
     let active = true;
     const report = reporter((error) => latestOnError.current?.(error));
 
-    const runCheck = async (mayPresent: boolean): Promise<RuntimeMetadata | null> => {
+    const runCheck = async (): Promise<RuntimeMetadata | null> => {
       const metadata = getRuntimeMetadata(locale, report, runtimeMetadata);
       if (metadata === null) return null;
       const result = await checkApi({ appId, apiUrl, timeoutMs, metadata, storage, onError: report, signal: controller.signal });
-      if (!active || result === null || !mayPresent || presentedThisMount.current || !mounted.current) return metadata;
+      if (!active || result === null || !mounted.current) return metadata;
+      const required = result.response.update?.mode === 'required';
+      if (presentedThisMount.current && !required) return metadata;
+      if (required && displayRef.current?.value.kind === 'required' &&
+        displayRef.current.value.update.targetBuildNumber === result.response.update?.targetBuildNumber) return metadata;
       const targetBuild = result.response.update?.targetBuildNumber ?? 0;
       const keys = createStorageKeys(appId, metadata.platform, metadata.buildNumber, targetBuild);
       let presentationToShow: Presentation | null;
@@ -113,15 +120,16 @@ export function VibeUpdate({
         try {
           const seen = await getSeenState(storage, keys);
           presentationToShow = choosePresentation(result.response, seen);
-          if (presentationToShow !== null) await markPresentationSeen(storage, keys, presentationToShow.kind);
         } catch (cause) {
           storageError(latestOnError.current, cause);
           return metadata;
         }
       }
-      if (presentationToShow !== null && active && mounted.current && !presentedThisMount.current) {
+      if (presentationToShow !== null && active && mounted.current && (!presentedThisMount.current || required)) {
         presentedThisMount.current = true;
-        setPresentation(presentationToShow);
+        const next = { value: presentationToShow, keys };
+        displayRef.current = next;
+        setDisplay(next);
       }
       return metadata;
     };
@@ -129,7 +137,7 @@ export function VibeUpdate({
     const initial = async (): Promise<void> => {
       if (requestedInitialCheck.current) return;
       requestedInitialCheck.current = true;
-      await runCheck(true);
+      await runCheck();
     };
 
     const foreground = async (): Promise<void> => {
@@ -143,7 +151,7 @@ export function VibeUpdate({
         storageError(latestOnError.current, cause);
         return;
       }
-      await runCheck(!presentedThisMount.current);
+      await runCheck();
     };
 
     void initial();
@@ -192,12 +200,17 @@ export function VibeUpdate({
     }
   };
 
-  if (!enabled || presentation === null) return null;
+  if (!enabled || display === null) return null;
   return (
     <UpdateDialog
-      presentation={presentation}
+      presentation={display.value}
       locale={locale ?? getRuntimeMetadata(undefined, undefined, runtimeMetadata)?.locale ?? 'en'}
-      onDismiss={() => { setPresentation(null); }}
+      onDismiss={() => { displayRef.current = null; setDisplay(null); }}
+      onShown={() => {
+        if (displayRef.current !== display || (display.value.kind !== 'optional' && display.value.kind !== 'changelog')) return;
+        void markPresentationSeen(storage, display.keys, display.value.kind)
+          .catch((cause: unknown) => { storageError(latestOnError.current, cause); });
+      }}
       onOpenStore={openStore}
       onOpenLink={openLink}
       {...(theme === undefined ? {} : { theme })}

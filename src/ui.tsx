@@ -1,6 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
-  Animated,
   Linking,
   Modal,
   Pressable,
@@ -22,6 +21,7 @@ export interface UpdateDialogProps {
   presentation: Presentation;
   locale: string;
   onDismiss: () => void;
+  onShown?: () => void;
   onOpenStore: (url: string) => void | Promise<void>;
   onOpenLink?: (url: string) => void | Promise<void>;
   theme?: VibeUpdateThemeOverride;
@@ -88,6 +88,7 @@ export function UpdateDialog({
   presentation,
   locale,
   onDismiss,
+  onShown,
   onOpenStore,
   onOpenLink = async (url: string) => {
     try { await Linking.openURL(url); } catch { /* Fail open for direct internal use. */ }
@@ -97,8 +98,6 @@ export function UpdateDialog({
 }: UpdateDialogProps): React.JSX.Element {
   const theme = resolveTheme(useColorScheme(), themeOverride);
   const strings = resolveStrings(locale, stringOverrides);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(16)).current;
   const required = presentation.kind === 'required';
   const isUpdate = presentation.kind !== 'changelog';
   const title = presentation.kind === 'required'
@@ -111,77 +110,49 @@ export function UpdateDialog({
   const version = isUpdate ? presentation.update.version : presentation.changelog.version;
   const markdown = isUpdate ? presentation.update.changelog : presentation.changelog.markdown;
 
-  useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
-    Animated.timing(translateY, { toValue: 0, duration: 220, useNativeDriver: true }).start();
-  }, [opacity, translateY]);
-
   const dismiss = (): void => { if (!required) onDismiss(); };
 
   return (
     <Modal
       visible
-      transparent={!required}
-      animationType="none"
+      presentationStyle="fullScreen"
+      animationType="slide"
       onRequestClose={dismiss}
-      statusBarTranslucent
+      onShow={onShown}
       accessibilityViewIsModal
     >
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: required ? theme.surface : theme.backdrop }]}>
-        <Pressable
-          accessible={false}
-          disabled={required}
-          onPress={dismiss}
-          style={styles.backdrop}
-        >
-          <Animated.View
-            accessibilityRole="alert"
-            style={[
-              styles.sheet,
-              required && styles.requiredSheet,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                borderRadius: required ? 0 : theme.cornerRadius,
-                opacity,
-                transform: [{ translateY }],
-              },
-            ]}
-          >
-            <Pressable onPress={() => undefined} style={styles.contentPressable}>
-              {!required && <View style={[styles.handle, { backgroundColor: theme.border }]} />}
-              <View style={styles.header}>
-                <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]} allowFontScaling maxFontSizeMultiplier={1.8}>{title}</Text>
-                <Text style={[styles.version, { color: theme.mutedText }]} allowFontScaling maxFontSizeMultiplier={1.8}>{strings.versionLabel} {version}</Text>
-              </View>
-              <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator>
-                <Markdown markdown={markdown} text={theme.text} accent={theme.accent} onOpenLink={onOpenLink} />
-              </ScrollView>
-              <View style={styles.actions}>
-                {!required && (
-                  <Pressable
-                    accessibilityLabel={isUpdate ? strings.later : strings.close}
-                    accessibilityRole="button"
-                    onPress={onDismiss}
-                    style={({ pressed }) => [styles.secondaryButton, { backgroundColor: pressed ? theme.elevatedSurface : 'transparent', borderColor: theme.border }]}
-                  >
-                    <Text style={[styles.buttonText, { color: theme.text }]} allowFontScaling>{isUpdate ? strings.later : strings.close}</Text>
-                  </Pressable>
-                )}
-                {isUpdate && (
-                  <Pressable
-                    accessibilityLabel={strings.updateNow}
-                    accessibilityRole="button"
-                    onPress={() => { void onOpenStore(presentation.update.storeUrl); }}
-                    style={({ pressed }) => [styles.primaryButton, { backgroundColor: pressed ? theme.pressed : theme.accent }]}
-                  >
-                    <Text style={[styles.buttonText, { color: theme.accentText }]} allowFontScaling>{strings.updateNow}</Text>
-                  </Pressable>
-                )}
-              </View>
-            </Pressable>
-          </Animated.View>
-        </Pressable>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.surface }]}>
+        <View style={styles.page}>
+          <View style={styles.header}>
+            <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]} allowFontScaling maxFontSizeMultiplier={1.8}>{title}</Text>
+            <Text style={[styles.version, { color: theme.mutedText }]} allowFontScaling maxFontSizeMultiplier={1.8}>{strings.versionLabel} {version}</Text>
+          </View>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator>
+            <Markdown markdown={markdown} text={theme.text} accent={theme.accent} onOpenLink={onOpenLink} />
+          </ScrollView>
+          <View style={styles.actions}>
+            {!required && (
+              <Pressable
+                accessibilityLabel={isUpdate ? strings.later : strings.close}
+                accessibilityRole="button"
+                onPress={onDismiss}
+                style={({ pressed }) => [styles.secondaryButton, { backgroundColor: pressed ? theme.elevatedSurface : 'transparent', borderColor: theme.border }]}
+              >
+                <Text style={[styles.buttonText, { color: theme.text }]} allowFontScaling>{isUpdate ? strings.later : strings.close}</Text>
+              </Pressable>
+            )}
+            {isUpdate && (
+              <Pressable
+                accessibilityLabel={strings.updateNow}
+                accessibilityRole="button"
+                onPress={() => { void onOpenStore(presentation.update.storeUrl); }}
+                style={({ pressed }) => [styles.primaryButton, { backgroundColor: pressed ? theme.pressed : theme.accent }]}
+              >
+                <Text style={[styles.buttonText, { color: theme.accentText }]} allowFontScaling>{strings.updateNow}</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -189,16 +160,12 @@ export function UpdateDialog({
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  backdrop: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderWidth: StyleSheet.hairlineWidth, borderBottomWidth: 0, maxHeight: '88%', minHeight: 280 },
-  requiredSheet: { flex: 1, maxHeight: '100%', justifyContent: 'center', borderWidth: 0 },
-  contentPressable: { flexShrink: 1, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 20 },
-  handle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
-  header: { gap: 7, marginBottom: 20 },
+  page: { flex: 1, paddingHorizontal: 24, paddingTop: 28, paddingBottom: 20 },
+  header: { gap: 7, marginBottom: 24 },
   title: { fontSize: 25, lineHeight: 31, fontWeight: '700', letterSpacing: -0.3 },
   version: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  scroll: { flexShrink: 1 },
-  scrollContent: { paddingBottom: 8 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
   heading: { display: 'flex', fontSize: 20, lineHeight: 27, fontWeight: '700', marginTop: 14, marginBottom: 6 },
   smallHeading: { fontSize: 17, lineHeight: 24 },
   body: { display: 'flex', fontSize: 16, lineHeight: 24, marginBottom: 12 },

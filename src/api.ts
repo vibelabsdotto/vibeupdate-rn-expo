@@ -48,7 +48,7 @@ async function readCache(storage: StorageAdapter, key: string): Promise<CachedCh
 function endpoint(options: CheckApiOptions): URL | null {
   try {
     const base = new URL(options.apiUrl);
-    if (base.protocol !== 'https:' && base.hostname !== 'localhost' && base.hostname !== '127.0.0.1') return null;
+    if (base.protocol !== 'https:' && !(base.protocol === 'http:' && (base.hostname === 'localhost' || base.hostname === '127.0.0.1'))) return null;
     const url = new URL(`/api/v1/sdk/apps/${encodeURIComponent(options.appId.trim())}/check`, base);
     const metadata = options.metadata;
     url.search = new URLSearchParams({
@@ -84,7 +84,11 @@ export async function checkApi(options: CheckApiOptions): Promise<CheckApiResult
     const checkedAt = (options.now ?? Date.now)();
     if (response.status === 304) {
       if (cached === null) return report(options, { code: 'invalid-response', message: 'VibeUpdate received 304 without a cached response.' });
-      await options.storage.setItem(keys.lastSuccess, String(checkedAt));
+      try {
+        await options.storage.setItem(keys.lastSuccess, String(checkedAt));
+      } catch (cause) {
+        report(options, { code: 'storage', message: 'VibeUpdate could not persist the last successful check.', cause });
+      }
       return { response: cached.response, checkedAt, fromCache: true };
     }
     if (!response.ok) {
@@ -92,7 +96,7 @@ export async function checkApi(options: CheckApiOptions): Promise<CheckApiResult
       return report(options, {
         code: likelyConfigurationError ? 'invalid-config' : 'http',
         message: likelyConfigurationError
-          ? `VibeUpdate rejected the appId or native application identifier (HTTP ${response.status}).`
+          ? `VibeUpdate rejected the SDK check parameters or app configuration (HTTP ${response.status}).`
           : `VibeUpdate request failed with HTTP ${response.status}.`,
         status: response.status,
       });
@@ -110,10 +114,14 @@ export async function checkApi(options: CheckApiOptions): Promise<CheckApiResult
       return report(options, { code: 'invalid-response', message: 'VibeUpdate returned an update that is not newer than the installed build.' });
     }
     const etag = response.headers.get('ETag');
-    await Promise.all([
-      options.storage.setItem(keys.cache, JSON.stringify({ etag, response: parsed } satisfies CachedCheck)),
-      options.storage.setItem(keys.lastSuccess, String(checkedAt)),
-    ]);
+    try {
+      await Promise.all([
+        options.storage.setItem(keys.cache, JSON.stringify({ etag, response: parsed } satisfies CachedCheck)),
+        options.storage.setItem(keys.lastSuccess, String(checkedAt)),
+      ]);
+    } catch (cause) {
+      report(options, { code: 'storage', message: 'VibeUpdate could not persist the SDK check.', cause });
+    }
     return { response: parsed, checkedAt, fromCache: false };
   } catch (cause) {
     if (options.signal?.aborted && !didTimeout) return null;

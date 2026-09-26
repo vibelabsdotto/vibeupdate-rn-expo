@@ -1,0 +1,15 @@
+{
+  "visibleVersion": "1.0.0",
+  "translations": [
+    {
+      "locale": "en",
+      "sharedMarkdown": "# Welcome\n\nFirst local SDK release."
+    }
+  ],
+  "targets": [
+    {
+      "platform": "ios",
+      "buildNumber": 1
+    }
+  ]
+}

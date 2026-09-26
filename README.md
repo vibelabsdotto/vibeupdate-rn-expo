@@ -1,6 +1,6 @@
 # @vibelabsdotto/vibeupdate
 
-Public Expo and React Native SDK for localized changelogs and optional, persistent, or required store-update prompts. It checks after the host app's first render, renders no loader, collects no identifiers, and fails open on every integration, storage, validation, or network error.
+Public Expo and React Native SDK for localized changelogs and optional, persistent, or required store-update prompts. It checks after the host app's first render, renders no loader, creates no device or user identifiers, and fails open when no trustworthy current server response is available.
 
 ## Compatibility
 
@@ -14,14 +14,40 @@ There is no custom native code and no dependency on Gorhom, Reanimated, Gesture 
 
 ## Installation
 
-Install the package, then let Expo select versions of its native modules compatible with your SDK:
+Install the published SDK, then let Expo select versions of its native modules compatible with your SDK:
 
 ```sh
 npm install @vibelabsdotto/vibeupdate
 npx expo install expo-application expo-localization @react-native-async-storage/async-storage
 ```
 
-`react`, `react-native`, and `expo` are peer dependencies normally already present in an Expo app.
+`react`, `react-native`, and `expo` are peer dependencies normally already present in an Expo app. Native modules require a development or production build after installation; Expo Go uses its host metadata (see below).
+
+## Release CLI and local simulator demo
+
+This package also installs a `vibeupdate` CLI (from this checkout: `node ./bin/vibeupdate.mjs`). It talks to the VibeUpdate backend; it does **not** upload an IPA/AAB or deploy an Expo OTA bundle. Create an **agent token** in the dashboard and set it only in the environment:
+
+```sh
+export VIBEUPDATE_API_URL=http://localhost:3200 # omit for the hosted HTTPS API
+export VIBEUPDATE_TOKEN='<agent token from the dashboard>'
+node ./bin/vibeupdate.mjs apps
+node ./bin/vibeupdate.mjs releases <internal-app-id>
+node ./bin/vibeupdate.mjs push <internal-app-id> example/releases/build-2.json ios optional
+node ./bin/vibeupdate.mjs add-target <internal-app-id> <release-id> android 2 optional
+node ./bin/vibeupdate.mjs check <public-app-id> ios com.example.app 1 1.0.0 en-US
+```
+
+`apps` lists the **internal** `appdb_…` ID for publishing; `check` uses the **public** `app_…` ID and needs no token. The release JSON includes `visibleVersion`, at least one `translations` entry with Markdown, and a `targets` entry with a platform and integer build number (see `example/releases/`). The app must already have that platform's native identifier and HTTPS Store URL configured. `push` creates a draft, publishes the selected platform/mode, and reads the published target back; if publication fails, inspect the remaining draft in the dashboard before retrying. A visible version is unique **per app**, not per platform: use `add-target` on an existing release to add the other platform at its own build number. This preserves the first platform's published target and refuses to replace an existing one. Never commit a real agent token.
+
+For a local iOS Simulator smoke with the sibling backend running on port 3200:
+
+```sh
+npm ci && npm run build
+cd example && npm ci
+EXPO_PUBLIC_VIBEUPDATE_APP_ID='<public-app-id>' npx expo run:ios
+```
+
+The demo defaults to a local-only public app ID created during development; override it for another database. Override `EXPO_PUBLIC_VIBEUPDATE_API_URL` if the backend is elsewhere. iOS Simulator uses `localhost`; for Android Emulator first run `adb reverse tcp:3200 tcp:3200` so `localhost` reaches the development backend. The SDK intentionally rejects plain HTTP to `10.0.2.2`; do not loosen this in a production integration. `example/app.json` sets native build 1, the demo bundle ID, and iOS local-network HTTP permission **for this local smoke only**; don't copy that exception into a production app. The demo has **Check API**, **Remount SDK**, and **Reset demo state** controls to inspect four sequential release examples (installed-build changelog, Optional, Persistent, Required) without reinstalling the native app. A real store listing and build are needed to verify the external Store action; the fixture Store URL is only a placeholder.
 
 ## Minimal integration
 
@@ -40,7 +66,7 @@ export default function RootLayout() {
 }
 ```
 
-The initial request starts in an effect after the first render. At most one VibeUpdate dialog is presented per component mount. The priority is Required, Persistent, installed-build changelog, then Optional.
+The initial request starts in an effect after the first render. Normally at most one full-screen modal page is presented per component mount; a newly published Required update can replace an earlier page or appear after that page was dismissed on a later foreground check. Required has no dismiss action; Persistent and Optional have Later, and the installed-build changelog has Close. The priority is Required, Persistent, installed-build changelog, then Optional.
 
 ## Props
 
@@ -80,6 +106,8 @@ Expo Go exposes the Expo host app's native metadata rather than your app's futur
   }}
 />
 ```
+
+Build numbers must be positive integers on both platforms. In particular, use a numeric iOS `CFBundleVersion` (Expo `ios.buildNumber`), not a dotted value like `3.1.2`. If a preview host has a nonnumeric native build, pass an explicit numeric `runtimeMetadata.buildNumber` matching the published release. Native application IDs, versions, and locale tags must fit the backend request limits (255, 50, and 35 characters respectively); locale tags must be valid BCP-47.
 
 ## Theme
 
@@ -150,7 +178,7 @@ Keys are namespaced with `@vibelabsdotto/vibeupdate:v1` and scoped by app, platf
 
 Invalid Expo application metadata and likely app-ID/native-ID configuration mistakes emit a clear `console.warn` in development. Production remains silent unless `onError` is supplied. Errors thrown by host callbacks are contained.
 
-Only a current HTTP 200 response, or an HTTP 304 that confirms a locally validated ETag response, may activate Required. Timeouts, offline errors, 4xx/5xx responses, invalid JSON, invalid response fields, and storage failures never activate a cached Required response.
+Only a current HTTP 200 response, or an HTTP 304 that confirms a locally validated ETag response, may activate Required. Timeouts, offline errors, 4xx/5xx responses, invalid JSON, and invalid response fields never activate a cached Required response. A storage **write** failure is reported through `onError` but does not discard a fresh 200 response or a confirmed 304; a failed seen-state read suppresses Optional and Changelog instead of guessing whether they were shown.
 
 ## Privacy
 
@@ -167,7 +195,7 @@ The SDK creates and sends no device ID, installation ID, user ID, analytics even
 
 ## Safe changelog Markdown
 
-The native renderer supports paragraphs, headings, ordered and unordered lists, bold, italic, and links. It never renders HTML, scripts, images, WebViews, or custom components. Only `https://` and `mailto:` links are clickable; all other schemes are plain text. Input length, block count, and list length are bounded before rendering.
+The native renderer supports paragraphs, headings, ordered and unordered lists, bold, italic, and links. It never renders HTML, scripts, images, WebViews, or custom components. Only `https://` and `mailto:` links are clickable; all other schemes are plain text. The backend limits each Markdown field to 100,000 characters; the renderer does not silently truncate accepted content.
 
 ## SDK check response
 

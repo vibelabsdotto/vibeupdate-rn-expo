@@ -1,0 +1,15 @@
+{
+  "visibleVersion": "1.2.0",
+  "translations": [
+    {
+      "locale": "en",
+      "sharedMarkdown": "# 1.2\n\nA persistent update reminder."
+    }
+  ],
+  "targets": [
+    {
+      "platform": "ios",
+      "buildNumber": 3
+    }
+  ]
+}

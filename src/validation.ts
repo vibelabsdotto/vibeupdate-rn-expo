@@ -17,7 +17,7 @@ function isLocale(value: unknown): value is string {
 }
 
 function isHttpsUrl(value: unknown): value is string {
-  if (!isNonEmptyString(value, 2048)) return false;
+  if (!isNonEmptyString(value)) return false;
   try { return new URL(value).protocol === 'https:'; } catch { return false; }
 }
 

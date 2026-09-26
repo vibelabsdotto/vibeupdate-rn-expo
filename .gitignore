@@ -4,3 +4,9 @@ coverage/
 *.tgz
 *.tsbuildinfo
 .DS_Store
+.hermes/
+.agents/
+skills-lock.json
+example/.expo/
+example/ios/
+example/android/

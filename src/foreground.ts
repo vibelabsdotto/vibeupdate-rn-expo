@@ -8,5 +8,5 @@ export function shouldRecheckInForeground(
   const lastSuccess = typeof storedLastSuccess === 'number'
     ? storedLastSuccess
     : Number(storedLastSuccess);
-  return !Number.isFinite(lastSuccess) || lastSuccess <= 0 || now - lastSuccess >= intervalMs;
+  return !Number.isFinite(lastSuccess) || lastSuccess <= 0 || lastSuccess > now || now - lastSuccess >= intervalMs;
 }

@@ -1,0 +1,15 @@
+{
+  "visibleVersion": "2.0.0",
+  "translations": [
+    {
+      "locale": "en",
+      "sharedMarkdown": "# 2.0\n\nThis build requires an update."
+    }
+  ],
+  "targets": [
+    {
+      "platform": "ios",
+      "buildNumber": 4
+    }
+  ]
+}

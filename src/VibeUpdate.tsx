@@ -207,7 +207,7 @@ export function VibeUpdate({
       locale={locale ?? getRuntimeMetadata(undefined, undefined, runtimeMetadata)?.locale ?? 'en'}
       onDismiss={() => { displayRef.current = null; setDisplay(null); }}
       onShown={() => {
-        if (displayRef.current !== display || (display.value.kind !== 'optional' && display.value.kind !== 'changelog')) return;
+        if (displayRef.current !== display) return;
         void markPresentationSeen(storage, display.keys, display.value.kind)
           .catch((cause: unknown) => { storageError(latestOnError.current, cause); });
       }}

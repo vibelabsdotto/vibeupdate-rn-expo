@@ -1,6 +1,6 @@
 {
   "name": "@vibelabsdotto/vibeupdate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Fail-open update prompts and localized changelogs for Expo and React Native apps.",
   "license": "MIT",
   "author": "VibeLabs",

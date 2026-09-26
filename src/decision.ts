@@ -5,11 +5,11 @@ export function choosePresentation(response: CheckResponse, seen: SeenState): Pr
   if (update?.mode === 'required' || update?.mode === 'persistent') {
     return { kind: update.mode, update };
   }
-  if (response.changelog !== null && !seen.changelogSeen) {
-    return { kind: 'changelog', changelog: response.changelog };
+  if (update?.mode === 'optional') {
+    return seen.optionalSeen ? null : { kind: 'optional', update };
   }
-  if (update?.mode === 'optional' && !seen.optionalSeen) {
-    return { kind: 'optional', update };
+  if (response.changelog !== null && !seen.changelogSeen && !seen.optionalSeen) {
+    return { kind: 'changelog', changelog: response.changelog };
   }
   return null;
 }

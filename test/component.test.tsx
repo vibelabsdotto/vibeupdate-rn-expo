@@ -55,7 +55,11 @@ describe('VibeUpdate mount behavior', () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     await act(async () => { renderer = TestRenderer.create(<VibeUpdate appId="app_x" foregroundIntervalMs={0} />); });
     const firstDialog = renderer.root.findByType('UpdateDialog' as React.ElementType);
-    expect(firstDialog.props.presentation.kind).toBe('changelog');
+    expect(firstDialog.props.presentation.kind).toBe('optional');
+    expect(firstDialog.props.presentation.update.changelog).toBe(optionalResponse.update?.changelog);
+    await act(async () => { firstDialog.props.onShown(); });
+    expect(boundary.data.get('@vibelabsdotto/vibeupdate:v1:app_x:ios:changelog:42')).toBe('1');
+    expect(boundary.data.get('@vibelabsdotto/vibeupdate:v1:app_x:ios:optional:42')).toBe('1');
     act(() => { firstDialog.props.onDismiss(); });
     expect(renderer.root.findAllByType('UpdateDialog' as React.ElementType)).toHaveLength(0);
     await act(async () => { boundary.appStateListener?.('active'); });

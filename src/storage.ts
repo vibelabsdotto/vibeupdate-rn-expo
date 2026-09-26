@@ -19,8 +19,10 @@ export function createStorageKeys(
   return {
     cache: `${scope}:check-cache`,
     lastSuccess: `${scope}:last-success`,
-    changelogSeen: `${scope}:changelog:${installedBuild}`,
-    optionalSeen: `${scope}:optional:${targetBuild}`,
+    // One notes key follows the release: target before install, installed build after install.
+    changelogSeen: `${scope}:changelog:${targetBuild || installedBuild}`,
+    // An older SDK only recorded this key when showing an Optional target.
+    optionalSeen: `${scope}:optional:${targetBuild || installedBuild}`,
   };
 }
 
@@ -37,9 +39,8 @@ export async function markPresentationSeen(
   keys: StorageKeys,
   kind: PresentationKind,
 ): Promise<void> {
-  if (kind === 'changelog') {
-    await storage.setItem(keys.changelogSeen, '1');
-  } else if (kind === 'optional') {
+  if (kind === 'optional') {
     await storage.setItem(keys.optionalSeen, '1');
   }
+  await storage.setItem(keys.changelogSeen, '1');
 }

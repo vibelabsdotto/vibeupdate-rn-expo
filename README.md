@@ -47,7 +47,7 @@ cd example && npm ci
 EXPO_PUBLIC_VIBEUPDATE_APP_ID='<public-app-id>' npx expo run:ios
 ```
 
-The demo defaults to a local-only public app ID created during development; override it for another database. Override `EXPO_PUBLIC_VIBEUPDATE_API_URL` if the backend is elsewhere. iOS Simulator uses `localhost`; for Android Emulator first run `adb reverse tcp:3200 tcp:3200` so `localhost` reaches the development backend. The SDK intentionally rejects plain HTTP to `10.0.2.2`; do not loosen this in a production integration. `example/app.json` sets native build 1, the demo bundle ID, and iOS local-network HTTP permission **for this local smoke only**; don't copy that exception into a production app. The demo has **Check API**, **Remount SDK**, and **Reset demo state** controls to inspect four sequential release examples (installed-build changelog, Optional, Persistent, Required) without reinstalling the native app. A real store listing and build are needed to verify the external Store action; the fixture Store URL is only a placeholder.
+The demo defaults to a local-only public app ID created during development; override it for another database. Override `EXPO_PUBLIC_VIBEUPDATE_API_URL` if the backend is elsewhere. iOS Simulator uses `localhost`; for Android Emulator first run `adb reverse tcp:3200 tcp:3200` so `localhost` reaches the development backend. The SDK intentionally rejects plain HTTP to `10.0.2.2`; do not loosen this in a production integration. `example/app.json` sets native build 1, the demo bundle ID, and iOS local-network HTTP permission **for this local smoke only**; don't copy that exception into a production app. The demo has **Check API**, **Remount SDK**, and **Reset demo state** controls to inspect an installed-build changelog when no update is available, then Optional, Persistent, and Required releases without reinstalling the native app. A real store listing and build are needed to verify the external Store action; the fixture Store URL is only a placeholder.
 
 ## Minimal integration
 
@@ -66,7 +66,7 @@ export default function RootLayout() {
 }
 ```
 
-The initial request starts in an effect after the first render. Normally at most one full-screen modal page is presented per component mount; a newly published Required update can replace an earlier page or appear after that page was dismissed on a later foreground check. Required has no dismiss action; Persistent and Optional have Later, and the installed-build changelog has Close. The priority is Required, Persistent, installed-build changelog, then Optional.
+The initial request starts in an effect after the first render. Normally at most one full-screen modal page is presented per component mount; a newly published Required update can replace an earlier page or appear after that page was dismissed on a later foreground check. Every update prompt shows the **target version's** release notes with an Update now action. Optional appears once per target build, Persistent on each fresh app launch until updated, and Required on each fresh launch until updated with no dismiss action. Optional and Persistent have Later. If no update is available, the installed build's release notes appear once with a Close action, but only if the SDK has not already shown those notes in an update prompt. An automatic store update can therefore produce a one-time "What's new" page without an update action. Any available update takes priority over installed-build notes, including an Optional prompt that was already shown.
 
 ## Props
 
@@ -163,7 +163,7 @@ const storage: StorageAdapter = {
 };
 ```
 
-Keys are namespaced with `@vibelabsdotto/vibeupdate:v1` and scoped by app, platform, and relevant installed or target build. Changelogs are shown once per app, platform, and installed build. Optional updates are shown once per app, platform, and target build. Persistent and Required updates repeat on every new mount while returned by a current successful response.
+Keys are namespaced with `@vibelabsdotto/vibeupdate:v1` and scoped by app and platform. One release-notes key follows each build: showing its notes in a target-version update prompt marks the same key checked after that build is installed. The installed build's "What's new" page appears only if that key is unseen and no update is available. A separate target-build key tracks whether an Optional invitation was shown. Persistent and Required prompts ignore the notes key and repeat on every new mount while a current successful response still calls for the update. Seen keys are written when the modal appears, not when the user taps Update now or dismisses it. Optional prompts shown by SDK 0.1.x are recognized through their existing seen key; that version did not record impressions for Persistent or Required prompts, so their notes may appear once after updating an existing integration to 0.2.0.
 
 ## Errors and fail-open behavior
 
@@ -178,7 +178,7 @@ Keys are namespaced with `@vibelabsdotto/vibeupdate:v1` and scoped by app, platf
 
 Invalid Expo application metadata and likely app-ID/native-ID configuration mistakes emit a clear `console.warn` in development. Production remains silent unless `onError` is supplied. Errors thrown by host callbacks are contained.
 
-Only a current HTTP 200 response, or an HTTP 304 that confirms a locally validated ETag response, may activate Required. Timeouts, offline errors, 4xx/5xx responses, invalid JSON, and invalid response fields never activate a cached Required response. A storage **write** failure is reported through `onError` but does not discard a fresh 200 response or a confirmed 304; a failed seen-state read suppresses Optional and Changelog instead of guessing whether they were shown.
+Only a current HTTP 200 response, or an HTTP 304 that confirms a locally validated ETag response, may activate Required. Timeouts, offline errors, 4xx/5xx responses, invalid JSON, and invalid response fields never activate a cached Required response. A storage **write** failure is reported through `onError` but does not discard a fresh 200 response or a confirmed 304; a failed seen-state read suppresses Optional and the installed-build "What's new" page instead of guessing whether they were shown. Persistent and Required still display if reading seen state fails.
 
 ## Privacy
 

@@ -106,8 +106,10 @@ vibeupdate release get <internal-app-id> <release-id> --json
 ```
 
 - `optional`: dismissible, shown once for a target build.
-- `persistent`: dismissible, shown on each launch while the installed build is older.
-- `required`: non-dismissible; reserve for critical cases and require explicit approval. Never choose this as a default.
+- `persistent`: dismissible, shown on each fresh app launch while the installed build is older.
+- `required`: non-dismissible, shown on each fresh launch while an update is required; reserve for critical cases and require explicit approval. Never choose this as a default.
+
+Each update prompt displays the **target build's** localized Markdown and an Update now action. The SDK records the target build's notes when the modal appears, so the same notes do not appear again as "What's new" after installation. The Optional invitation has a separate seen marker; prior notes do not suppress a Persistent or Required update. Without an available update, a build installed automatically can show its release notes once as "What's new" with Close and no update action. Do not expect the older installed build's notes to precede an available update, even if the Optional invitation was already shown.
 
 The CLI reads back mutations. If a create or publish request times out or its read-back fails, **inspect the app/release before retrying**: create is not idempotent. Never use `--yes` as a substitute for the user's approval. Deletion and unpublish change live behavior; get explicit approval and inspect the affected target afterward.
 
@@ -115,7 +117,7 @@ The CLI reads back mutations. If a create or publish request times out or its re
 
 1. `vibeupdate context verify` and `vibeupdate app sdk-setup <internal-app-id> --json` succeed.
 2. `vibeupdate release get <internal-app-id> <release-id> --json` shows the intended platform target as `published`, with the expected mode, build number, and default-locale Markdown.
-3. Run the real Expo app with a **lower matching native build** to check the update prompt. Test the store action against the real store listing. An installed-build changelog requires a release matching the installed build. Network/invalid-response failures fail open; an offline test cannot prove a required prompt.
+3. Run the real Expo app with a **lower matching native build** to check that the prompt shows the target build's notes and opens the real store listing. Verify Optional once per target, Persistent after a fresh app launch, and Required without a dismiss action. After installing the target build, confirm its notes do not repeat if its update prompt appeared. For an automatic store update without a prior prompt, the one-time "What's new" page requires a release matching the installed build. Network/invalid-response failures fail open; an offline test cannot prove a required prompt.
 4. If something disagrees, read the CLI/API error and compare IDs, native metadata, locale, store URL, context, and published status before changing data. Do not claim a device test passed unless it was actually run.
 
 ## References

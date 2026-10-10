@@ -1,0 +1,80 @@
+# Push/manual on main checks the SDK and example. Only stable vVERSION tags can publish.
+# The scripts enforce repository, exact commit, tag/version and remote-main ancestry.
+labels:
+  platform: linux/amd64
+  role: release
+
+when:
+  - event: [push, manual]
+    branch: main
+    ref: refs/heads/main
+    repo: vibelabsdotto/vibeupdate-rn-expo
+  - event: tag
+    ref: refs/tags/v*
+    repo: vibelabsdotto/vibeupdate-rn-expo
+
+clone:
+  - name: git
+    image: docker.io/woodpeckerci/plugin-git:2.10.0@sha256:0f06b03ec33137b556c77538563f66c400339052d0c5199d4c3ad1a2a37e1964
+    settings:
+      partial: false
+      depth: 0
+
+steps:
+  - name: build-typecheck-pack
+    image: node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+    commands:
+      # Slim has no git. Installation happens only in this secret-free container.
+      - apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+      - node scripts/ci-build.mjs
+
+  - name: verify-isolated-artifact
+    image: &publisher-image node:24-trixie@sha256:be40f6a87b9b22215ddb20da0a2320a5c6d583fe3ee3b0024d9fa4f05b40c8fd
+    environment:
+      PUBLISH_MODE: --verify-artifact
+    commands:
+      # This bootstrap is pipeline configuration, never a builder-writable script.
+      # Git/Node come from the pinned image. Nothing is installed in this container.
+      - &trusted-publisher |
+        set +x
+        set -eu
+        export PATH=/usr/local/bin:/usr/bin:/bin
+        unset NODE_OPTIONS NODE_PATH
+        case "$${CI_COMMIT_SHA:-}" in ''|*[!a-f0-9]*) exit 1 ;; esac
+        [ "$${#CI_COMMIT_SHA}" -eq 40 ]
+        shared="$${PWD}"
+        trusted=$(mktemp -d /tmp/vibeupdate-publisher.XXXXXX)
+        trap 'rm -rf -- "$${trusted}"' EXIT
+        case "$${trusted}/" in "$${shared}/"*) exit 1 ;; esac
+        export HOME="$${trusted}" TMPDIR=/tmp
+        cd "$${trusted}"
+        public_git() {
+          env -i PATH=/usr/bin:/bin HOME="$${trusted}" GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 \
+            /usr/bin/git -c credential.helper= -c core.askPass=/bin/false \
+            -c http.extraHeader= -c core.hooksPath=/dev/null -c init.templateDir= "$@"
+        }
+        public_git init --quiet
+        public_git fetch --quiet --no-tags https://github.com/vibelabsdotto/vibeupdate-rn-expo.git "$${CI_COMMIT_SHA}"
+        public_git -c advice.detachedHead=false checkout --quiet --detach FETCH_HEAD
+        [ "$(public_git rev-parse HEAD)" = "$${CI_COMMIT_SHA}" ]
+        /usr/local/bin/node "$${trusted}/scripts/ci-publish.mjs" "$${PUBLISH_MODE}" "$${shared}/.ci-artifacts"
+    when:
+      - event: [push, manual]
+        branch: main
+        ref: refs/heads/main
+        repo: vibelabsdotto/vibeupdate-rn-expo
+
+  - name: publish-exact-tarball
+    image: *publisher-image
+    environment:
+      PUBLISH_MODE: --publish
+      NPM_TOKEN:
+        from_secret: npm_token
+    commands:
+      # The shared workspace supplies archive bytes only, never executable code.
+      - *trusted-publisher
+    when:
+      - event: tag
+        ref: refs/tags/v*
+        repo: vibelabsdotto/vibeupdate-rn-expo

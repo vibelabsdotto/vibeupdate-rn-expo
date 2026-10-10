@@ -42,6 +42,8 @@ vi.mock('react-native', () => ({
 describe('VibeUpdate mount behavior', () => {
   beforeEach(() => {
     boundary.data.clear();
+    // These cases cover established installations; new installations wait for the grace period.
+    for (const app of ['app_x', 'app_old', 'app_new']) boundary.data.set(`@vibelabsdotto/vibeupdate:v1:${app}:ios:last-success`, '1');
     boundary.checkApi.mockReset();
     boundary.openURL.mockReset();
     boundary.openURL.mockResolvedValue(undefined);

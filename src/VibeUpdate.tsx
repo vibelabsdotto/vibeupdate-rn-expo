@@ -2,10 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Linking } from 'react-native';
 import { checkApi } from './api.js';
-import { choosePresentation } from './decision.js';
+import {
+  DEFAULT_NEW_USER_GRACE_PERIOD_MS,
+  choosePresentation,
+  presentationIdentity,
+  withinNewUserGracePeriod,
+} from './decision.js';
 import { DEFAULT_FOREGROUND_INTERVAL_MS, shouldRecheckInForeground } from './foreground.js';
 import { getRuntimeMetadata } from './metadata.js';
-import { createStorageKeys, getSeenState, markPresentationSeen, type StorageKeys } from './storage.js';
+import { createStorageKeys, getSeenState, markPresentationSeen, resolveFirstLaunch, type StorageKeys } from './storage.js';
 import type {
   CheckVibeUpdateOptions,
   CheckVibeUpdateResult,
@@ -46,6 +51,12 @@ async function executeCheck(
     options.runtimeMetadata,
   );
   if (metadata === null) return null;
+  try {
+    // Record a new installation before checkApi stores its first successful check.
+    await resolveFirstLaunch(storage, options.appId, metadata.platform, metadata.buildNumber, Date.now());
+  } catch (cause) {
+    storageError(onError, cause);
+  }
   const result = await checkApi({
     appId: options.appId,
     apiUrl: options.apiUrl ?? DEFAULT_API_URL,
@@ -70,6 +81,7 @@ export function VibeUpdate({
   apiUrl = DEFAULT_API_URL,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   foregroundIntervalMs = DEFAULT_FOREGROUND_INTERVAL_MS,
+  newUserGracePeriodMs = DEFAULT_NEW_USER_GRACE_PERIOD_MS,
   storage = defaultStorage,
   theme,
   stringOverrides,
@@ -81,7 +93,7 @@ export function VibeUpdate({
 }: VibeUpdateProps): React.JSX.Element | null {
   const [display, setDisplay] = useState<Display | null>(null);
   const displayRef = useRef<Display | null>(null);
-  const presentedThisMount = useRef(false);
+  const presented = useRef(new Set<string>());
   const requestedInitialCheck = useRef(false);
   const mounted = useRef(true);
   const latestOnError = useRef(onError);
@@ -94,21 +106,38 @@ export function VibeUpdate({
 
   useEffect(() => {
     requestedInitialCheck.current = false;
-    presentedThisMount.current = false;
+    presented.current = new Set();
     displayRef.current = null;
     setDisplay(null);
     if (!enabled) return undefined;
     const controller = new AbortController();
     let active = true;
     const report = reporter((error) => latestOnError.current?.(error));
+    let firstLaunch: Promise<number> | null = null;
+
+    const readFirstLaunch = async (metadata: RuntimeMetadata): Promise<number | null> => {
+      if (firstLaunch === null) {
+        firstLaunch = resolveFirstLaunch(storage, appId, metadata.platform, metadata.buildNumber, Date.now());
+      }
+      try {
+        return await firstLaunch;
+      } catch (cause) {
+        firstLaunch = null;
+        storageError(latestOnError.current, cause);
+        return null;
+      }
+    };
 
     const runCheck = async (): Promise<RuntimeMetadata | null> => {
       const metadata = getRuntimeMetadata(locale, report, runtimeMetadata);
       if (metadata === null) return null;
+      // Resolve before checkApi stores a successful check, which would make a new installation look established.
+      const firstLaunchAt = await readFirstLaunch(metadata);
       const result = await checkApi({ appId, apiUrl, timeoutMs, metadata, storage, onError: report, signal: controller.signal });
       if (!active || result === null || !mounted.current) return metadata;
       const required = result.response.update?.mode === 'required';
-      if (presentedThisMount.current && !required) return metadata;
+      if (!required && (displayRef.current !== null ||
+        withinNewUserGracePeriod(firstLaunchAt, Date.now(), newUserGracePeriodMs))) return metadata;
       if (required && displayRef.current?.value.kind === 'required' &&
         displayRef.current.value.update.targetBuildNumber === result.response.update?.targetBuildNumber) return metadata;
       const targetBuild = result.response.update?.targetBuildNumber ?? 0;
@@ -125,12 +154,14 @@ export function VibeUpdate({
           return metadata;
         }
       }
-      if (presentationToShow !== null && active && mounted.current && (!presentedThisMount.current || required)) {
-        presentedThisMount.current = true;
-        const next = { value: presentationToShow, keys };
-        displayRef.current = next;
-        setDisplay(next);
-      }
+      if (presentationToShow === null || !active || !mounted.current) return metadata;
+      // A mount shows each prompt at most once; a later foreground return can still show a different one.
+      const identity = presentationIdentity(presentationToShow);
+      if (!required && presented.current.has(identity)) return metadata;
+      presented.current.add(identity);
+      const next = { value: presentationToShow, keys };
+      displayRef.current = next;
+      setDisplay(next);
       return metadata;
     };
 
@@ -169,6 +200,7 @@ export function VibeUpdate({
     enabled,
     foregroundIntervalMs,
     locale,
+    newUserGracePeriodMs,
     runtimeMetadata?.buildNumber,
     runtimeMetadata?.locale,
     runtimeMetadata?.nativeApplicationId,

@@ -2,6 +2,28 @@
 
 All notable changes to this package are documented in this file.
 
+## 0.4.0 - 2026-10-10
+
+### Changed
+
+- New users are not interrupted: What's new never appears for the build installed at the SDK's first launch, and only Required updates appear during the new `newUserGracePeriodMs` (default 24 hours). Installations with a successful check from an earlier SDK version are unaffected.
+- Returning to the foreground rechecks after one hour instead of six hours (`foregroundIntervalMs`), and can show a prompt that has not appeared during the current mount. A visible prompt is not replaced unless the update is Required.
+
+### Fixed
+
+- On Android, update dialogs no longer place the title under the status bar or the Later/Close action under the navigation bar. The SDK now requires `react-native-safe-area-context` as a peer dependency.
+
+## 0.3.0 - 2026-09-26
+
+### Added
+
+- A controlled `@vibelabsdotto/vibeupdate/preview` entry point for rendering update dialogs without an API request or seen-state writes.
+
+### Changed
+
+- Update dialogs put a full-width Update Now button above a text-only Later action; required updates still cannot be dismissed.
+- Long release notes and button labels wrap rather than being squeezed into side-by-side actions. The example app now includes an offline visual playground with editable notes and button colors.
+
 ## 0.2.0 - 2026-09-26
 
 ### Changed

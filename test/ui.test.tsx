@@ -28,6 +28,11 @@ vi.mock('react-native', async () => {
     useColorScheme: () => 'light',
   };
 });
+vi.mock('react-native-safe-area-context', async () => {
+  const ReactModule = await import('react');
+  const component = (name: string) => ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) => ReactModule.createElement(name, props, children);
+  return { SafeAreaProvider: component('SafeAreaProvider'), SafeAreaView: component('SafeAreaView') };
+});
 
 const required = { kind: 'required' as const, update: { ...optionalResponse.update!, mode: 'required' as const } };
 const optional = { kind: 'optional' as const, update: optionalResponse.update! };

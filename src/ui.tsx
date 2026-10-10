@@ -3,7 +3,6 @@ import {
   Linking,
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
   type StyleProp,
   type TextStyle,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { parseMarkdown, type InlineNode } from './markdown.js';
 import { resolveStrings } from './locales.js';
 import { resolveTheme } from './theme.js';
@@ -121,39 +121,42 @@ export function UpdateDialog({
       onShow={onShown}
       accessibilityViewIsModal
     >
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.surface }]}>
-        <View style={styles.page}>
-          <View style={styles.header}>
-            <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]} allowFontScaling maxFontSizeMultiplier={1.8}>{title}</Text>
-            <Text style={[styles.version, { color: theme.mutedText }]} allowFontScaling maxFontSizeMultiplier={1.8}>{strings.versionLabel} {version}</Text>
+      {/* Android Modals are separate edge-to-edge windows, so they need their own inset provider. */}
+      <SafeAreaProvider>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.surface }]}>
+          <View style={styles.page}>
+            <View style={styles.header}>
+              <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]} allowFontScaling maxFontSizeMultiplier={1.8}>{title}</Text>
+              <Text style={[styles.version, { color: theme.mutedText }]} allowFontScaling maxFontSizeMultiplier={1.8}>{strings.versionLabel} {version}</Text>
+            </View>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator>
+              <Markdown markdown={markdown} text={theme.text} accent={theme.accent} onOpenLink={onOpenLink} />
+            </ScrollView>
+            <View style={styles.actions}>
+              {isUpdate && (
+                <Pressable
+                  accessibilityLabel={strings.updateNow}
+                  accessibilityRole="button"
+                  onPress={() => { void onOpenStore(presentation.update.storeUrl); }}
+                  style={({ pressed }) => [styles.primaryButton, { backgroundColor: pressed ? theme.pressed : theme.accent }]}
+                >
+                  <Text style={[styles.buttonText, { color: theme.accentText }]} allowFontScaling maxFontSizeMultiplier={2}>{strings.updateNow}</Text>
+                </Pressable>
+              )}
+              {!required && (
+                <Pressable
+                  accessibilityLabel={isUpdate ? strings.later : strings.close}
+                  accessibilityRole="button"
+                  onPress={onDismiss}
+                  style={({ pressed }) => [styles.secondaryLink, { opacity: pressed ? 0.6 : 1 }]}
+                >
+                  <Text style={[styles.linkText, { color: theme.mutedText }]} allowFontScaling maxFontSizeMultiplier={2}>{isUpdate ? strings.later : strings.close}</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator>
-            <Markdown markdown={markdown} text={theme.text} accent={theme.accent} onOpenLink={onOpenLink} />
-          </ScrollView>
-          <View style={styles.actions}>
-            {!required && (
-              <Pressable
-                accessibilityLabel={isUpdate ? strings.later : strings.close}
-                accessibilityRole="button"
-                onPress={onDismiss}
-                style={({ pressed }) => [styles.secondaryButton, { backgroundColor: pressed ? theme.elevatedSurface : 'transparent', borderColor: theme.border }]}
-              >
-                <Text style={[styles.buttonText, { color: theme.text }]} allowFontScaling>{isUpdate ? strings.later : strings.close}</Text>
-              </Pressable>
-            )}
-            {isUpdate && (
-              <Pressable
-                accessibilityLabel={strings.updateNow}
-                accessibilityRole="button"
-                onPress={() => { void onOpenStore(presentation.update.storeUrl); }}
-                style={({ pressed }) => [styles.primaryButton, { backgroundColor: pressed ? theme.pressed : theme.accent }]}
-              >
-                <Text style={[styles.buttonText, { color: theme.accentText }]} allowFontScaling>{strings.updateNow}</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   );
 }
@@ -168,14 +171,15 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 24 },
   heading: { display: 'flex', fontSize: 20, lineHeight: 27, fontWeight: '700', marginTop: 14, marginBottom: 6 },
   smallHeading: { fontSize: 17, lineHeight: 24 },
-  body: { display: 'flex', fontSize: 16, lineHeight: 24, marginBottom: 12 },
+  body: { display: 'flex', flexShrink: 1, fontSize: 16, lineHeight: 24, marginBottom: 12 },
   bold: { fontWeight: '700' },
   italic: { fontStyle: 'italic' },
   list: { gap: 4, marginBottom: 10 },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   bullet: { width: 20, fontSize: 16, lineHeight: 24, fontWeight: '600', textAlign: 'right' },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  primaryButton: { flex: 1, minHeight: 50, borderRadius: 14, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  secondaryButton: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { fontSize: 16, lineHeight: 21, fontWeight: '700', textAlign: 'center' },
+  actions: { gap: 6, marginTop: 16 },
+  primaryButton: { minHeight: 52, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  secondaryLink: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  buttonText: { fontSize: 16, lineHeight: 22, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
+  linkText: { fontSize: 15, lineHeight: 21, fontWeight: '600', textAlign: 'center', textDecorationLine: 'underline' },
 });

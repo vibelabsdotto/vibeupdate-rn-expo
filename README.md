@@ -18,10 +18,10 @@ Install the published SDK, then let Expo select versions of its native modules c
 
 ```sh
 npm install @vibelabsdotto/vibeupdate
-npx expo install expo-application expo-localization @react-native-async-storage/async-storage
+npx expo install expo-application expo-localization @react-native-async-storage/async-storage react-native-safe-area-context
 ```
 
-`react`, `react-native`, and `expo` are peer dependencies normally already present in an Expo app. Native modules require a development or production build after installation; Expo Go uses its host metadata (see below).
+`react`, `react-native`, and `expo` are peer dependencies normally already present in an Expo app. `react-native-safe-area-context` keeps the full-screen dialog clear of the status and navigation bars; most Expo apps already include it. Native modules require a development or production build after installation; Expo Go uses its host metadata (see below).
 
 ## Release CLI and local simulator demo
 
@@ -34,15 +34,17 @@ vibeupdate --help
 
 Create an agent token under Dashboard → Agent Tokens and pass it to `vibeupdate context set-token VibeUpdate.app --token-stdin` through a private local file or secret-manager pipe. Do not put tokens in chat, shell arguments, environment variables, tracked files, or logs. The [agent setup skill](https://raw.githubusercontent.com/vibelabsdotto/vibeupdate-rn-expo/main/skills/vibeupdate/SKILL.md) documents safe CLI setup, internal versus public app IDs, SDK configuration, and release commands. Neither the CLI nor this SDK uploads an IPA/AAB or deploys an Expo OTA update.
 
-For a local iOS Simulator smoke with the sibling backend running on port 3200:
+For the interactive iOS Simulator example (the visual preview does not need a backend):
 
 ```sh
 npm ci && npm run build
 cd example && npm ci
-EXPO_PUBLIC_VIBEUPDATE_APP_ID='<public-app-id>' npx expo run:ios
+npx expo run:ios
 ```
 
-The demo defaults to a local-only public app ID created during development; override it for another database. Override `EXPO_PUBLIC_VIBEUPDATE_API_URL` if the backend is elsewhere. iOS Simulator uses `localhost`; for Android Emulator first run `adb reverse tcp:3200 tcp:3200` so `localhost` reaches the development backend. The SDK intentionally rejects plain HTTP to `10.0.2.2`; do not loosen this in a production integration. `example/app.json` sets native build 1, the demo bundle ID, and iOS local-network HTTP permission **for this local smoke only**; don't copy that exception into a production app. The demo has **Check API**, **Remount SDK**, and **Reset demo state** controls to inspect an installed-build changelog when no update is available, then Optional, Persistent, and Required releases without reinstalling the native app. A real store listing and build are needed to verify the external Store action; the fixture Store URL is only a placeholder.
+Choose Optional, Persistent, Required, or What's new; select language and colors; edit version, Markdown notes, the update button label, and an optional `#RRGGBB` button color; then tap **Vorschau öffnen**. The default English notes include wrapping paragraphs and long list items. The preview renders the actual SDK full-screen modal (not a bottom sheet) from local sample data: a full-width Update Now button with a Later link below, or just Close for What's new. It does not call the API, write seen-state keys, or open the Store. On Required, the update button closes the preview; the real Required dialog cannot be dismissed. The example uses the package's `@vibelabsdotto/vibeupdate/preview` subpath to render this controlled dialog separately from the live `VibeUpdate` component.
+
+For the live integration, start the sibling backend on port 3200, then use **SDK aktivieren**, **API prüfen**, **SDK neu laden**, and **SDK-Status zurücksetzen** in the example. The demo defaults to a local-only public app ID created during development; override `EXPO_PUBLIC_VIBEUPDATE_APP_ID` for another database. Override `EXPO_PUBLIC_VIBEUPDATE_API_URL` if the backend is elsewhere. **SDK-Status zurücksetzen** simulates a new installation; set `EXPO_PUBLIC_VIBEUPDATE_NEW_USER_GRACE_MS=60000` when starting Metro to shorten the 24-hour new-user period. iOS Simulator uses `localhost`; for Android Emulator first run `adb reverse tcp:3200 tcp:3200` so `localhost` reaches the development backend. The SDK intentionally rejects plain HTTP to `10.0.2.2`; do not loosen this in a production integration. `example/app.json` sets native build 1, the demo bundle ID, and iOS local-network HTTP permission **for this local smoke only**; don't copy that exception into a production app. A real store listing and build are needed to verify the external Store action; the fixture Store URL is only a placeholder.
 
 ## Minimal integration
 
@@ -61,7 +63,9 @@ export default function RootLayout() {
 }
 ```
 
-The initial request starts in an effect after the first render. Normally at most one full-screen modal page is presented per component mount; a newly published Required update can replace an earlier page or appear after that page was dismissed on a later foreground check. Every update prompt shows the **target version's** release notes with an Update now action. Optional appears once per target build, Persistent on each fresh app launch until updated, and Required on each fresh launch until updated with no dismiss action. Optional and Persistent have Later. If no update is available, the installed build's release notes appear once with a Close action, but only if the SDK has not already shown those notes in an update prompt. An automatic store update can therefore produce a one-time "What's new" page without an update action. Any available update takes priority over installed-build notes, including an Optional prompt that was already shown.
+The initial request starts in an effect after the first render, and the SDK checks again when the app returns to the foreground. Every update prompt shows the **target version's** release notes with an Update now action. Optional appears once per target build, Persistent once per app process (each fresh launch) until updated, and Required on each fresh launch until updated with no dismiss action. Optional and Persistent have Later. A visible prompt is never replaced by a non-Required one, but a foreground return can show a different prompt that has not appeared during this mount, such as a newly published update; a newly published Required update can replace an earlier page or appear after that page was dismissed. If no update is available, the installed build's release notes appear once with a Close action, but only if the SDK has not already shown those notes in an update prompt. An automatic store update can therefore produce a one-time "What's new" page without an update action. Any available update takes priority over installed-build notes, including an Optional prompt that was already shown.
+
+New users are not interrupted: the SDK records its first launch on an installation, never shows What's new for the build installed then, and shows only Required updates during `newUserGracePeriodMs` (default 24 hours). After that period, pending prompts appear at the next launch or foreground return. An installation with a successful check from an earlier SDK version counts as established. Users who update from an app version without VibeUpdate into the first version with it are treated as new.
 
 ## Props
 
@@ -70,7 +74,8 @@ The initial request starts in an effect after the first render. Normally at most
 | `appId` | `string` | required | Public VibeUpdate app ID (`app_xxx`). |
 | `apiUrl` | `string` | `https://api.vibeupdate.app` | API origin. HTTPS is required except for localhost development. |
 | `timeoutMs` | `number` | `3000` | AbortController request timeout. |
-| `foregroundIntervalMs` | `number` | `21600000` (6h) | Minimum time since the last successful check before an active-state recheck. |
+| `foregroundIntervalMs` | `number` | `3600000` (1h) | Minimum time since the last successful check before an active-state recheck. |
+| `newUserGracePeriodMs` | `number` | `86400000` (24h) | Time after the SDK's first launch on an installation during which only Required updates appear. |
 | `storage` | `StorageAdapter` | AsyncStorage | Custom local storage implementation. |
 | `theme` | `VibeUpdateThemeOverride` | system light/dark | Local visual token overrides. |
 | `stringOverrides` | `VibeUpdateStringOverrides` | resolved UI language | Local UI-copy overrides applied last. |
@@ -158,7 +163,7 @@ const storage: StorageAdapter = {
 };
 ```
 
-Keys are namespaced with `@vibelabsdotto/vibeupdate:v1` and scoped by app and platform. One release-notes key follows each build: showing its notes in a target-version update prompt marks the same key checked after that build is installed. The installed build's "What's new" page appears only if that key is unseen and no update is available. A separate target-build key tracks whether an Optional invitation was shown. Persistent and Required prompts ignore the notes key and repeat on every new mount while a current successful response still calls for the update. Seen keys are written when the modal appears, not when the user taps Update now or dismisses it. Optional prompts shown by SDK 0.1.x are recognized through their existing seen key; that version did not record impressions for Persistent or Required prompts, so their notes may appear once after updating an existing integration to 0.2.0.
+Keys are namespaced with `@vibelabsdotto/vibeupdate:v1` and scoped by app and platform. One release-notes key follows each build: showing its notes in a target-version update prompt marks the same key checked after that build is installed. The installed build's "What's new" page appears only if that key is unseen and no update is available. A separate target-build key tracks whether an Optional invitation was shown. Persistent and Required prompts ignore the notes key and repeat on every new mount while a current successful response still calls for the update. Seen keys are written when the modal appears, not when the user taps Update now or dismisses it. Optional prompts shown by SDK 0.1.x are recognized through their existing seen key; that version did not record impressions for Persistent or Required prompts, so their notes may appear once after updating an existing integration to 0.2.0. Since 0.4.0 a `first-launch` key records when the SDK first ran on the installation, for the new-user grace period; on that first run the installed build's notes key is marked seen.
 
 ## Errors and fail-open behavior
 

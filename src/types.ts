@@ -97,6 +97,7 @@ export interface VibeUpdateProps {
   apiUrl?: string;
   timeoutMs?: number;
   foregroundIntervalMs?: number;
+  newUserGracePeriodMs?: number;
   storage?: StorageAdapter;
   theme?: VibeUpdateThemeOverride;
   stringOverrides?: VibeUpdateStringOverrides;

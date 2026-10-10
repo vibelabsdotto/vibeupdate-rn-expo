@@ -9,13 +9,17 @@ export interface StorageKeys {
   optionalSeen: string;
 }
 
+function storageScope(appId: string, platform: PlatformName): string {
+  return `${PREFIX}:${encodeURIComponent(appId)}:${platform}`;
+}
+
 export function createStorageKeys(
   appId: string,
   platform: PlatformName,
   installedBuild: number,
   targetBuild: number,
 ): StorageKeys {
-  const scope = `${PREFIX}:${encodeURIComponent(appId)}:${platform}`;
+  const scope = storageScope(appId, platform);
   return {
     cache: `${scope}:check-cache`,
     lastSuccess: `${scope}:last-success`,
@@ -24,6 +28,31 @@ export function createStorageKeys(
     // An older SDK only recorded this key when showing an Optional target.
     optionalSeen: `${scope}:optional:${targetBuild || installedBuild}`,
   };
+}
+
+/**
+ * Returns when VibeUpdate first ran on this installation, recording it on the first call.
+ * An installation with a successful check from an earlier SDK version counts as established (0).
+ */
+export async function resolveFirstLaunch(
+  storage: StorageAdapter,
+  appId: string,
+  platform: PlatformName,
+  installedBuild: number,
+  now: number,
+): Promise<number> {
+  const firstLaunchKey = `${storageScope(appId, platform)}:first-launch`;
+  const stored = Number((await storage.getItem(firstLaunchKey)) ?? Number.NaN);
+  if (Number.isFinite(stored) && stored >= 0) return stored;
+  const keys = createStorageKeys(appId, platform, installedBuild, 0);
+  if ((await storage.getItem(keys.lastSuccess)) !== null) {
+    await storage.setItem(firstLaunchKey, '0');
+    return 0;
+  }
+  // A new user never needs What's new for the build they just installed.
+  await storage.setItem(keys.changelogSeen, '1');
+  await storage.setItem(firstLaunchKey, String(now));
+  return now;
 }
 
 export async function getSeenState(storage: StorageAdapter, keys: StorageKeys): Promise<SeenState> {

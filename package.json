@@ -1,6 +1,6 @@
 {
   "name": "@vibelabsdotto/vibeupdate",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Fail-open update prompts and localized changelogs for Expo and React Native apps.",
   "license": "MIT",
   "author": "VibeLabs",
@@ -16,6 +16,13 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js",
       "default": "./dist/esm/index.js"
+    },
+    "./preview": {
+      "types": "./dist/types/preview.d.ts",
+      "react-native": "./dist/esm/preview.js",
+      "import": "./dist/esm/preview.js",
+      "require": "./dist/cjs/preview.js",
+      "default": "./dist/esm/preview.js"
     },
     "./package.json": "./package.json"
   },
@@ -49,7 +56,8 @@
     "expo-application": ">=7.0.0 <58.0.0",
     "expo-localization": ">=17.0.0 <58.0.0",
     "react": ">=19.1.0 <20",
-    "react-native": ">=0.81.0 <0.87.0"
+    "react-native": ">=0.81.0 <0.87.0",
+    "react-native-safe-area-context": ">=5.6.0 <6"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
@@ -63,6 +71,7 @@
     "globals": "16.5.0",
     "react": "19.2.3",
     "react-native": "0.86.0",
+    "react-native-safe-area-context": "5.7.0",
     "react-test-renderer": "19.2.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.65.0",
